@@ -24,6 +24,7 @@ CRGB colorActivo  = colorActivo_dia;
 CRGB colorFondo   = colorFondo_dia;
 
 bool modoNocturna = false;
+bool modoEmergencia = false;
 
 int brillo = 50;
 
@@ -199,6 +200,28 @@ void animacionPMO() {
   }
 }
 
+// ===== MODO EMERGENCIA - Parpadeo de todos los intermitentes =====
+void modoEmergenciaActivado() {
+  modoEmergencia = true;
+  Serial.println("[EMERGENCIA] 🚨 Modo activado - Intermitentes en parpadeo");
+  
+  // Parpadeo rápido con toggle cada 250ms
+  while (modoEmergencia && !SerialBT.available()) {
+    // ENCENDER todos
+    enviarAlD1("IZQ", true);
+    enviarAlD1("DER", true);
+    delay(250);
+    
+    // APAGAR todos
+    enviarAlD1("IZQ", false);
+    enviarAlD1("DER", false);
+    delay(250);
+  }
+  
+  modoEmergencia = false;
+  Serial.println("[EMERGENCIA] Modo desactivado");
+}
+
 void togglePin(int pin, String comando) {
   int estadoActual = digitalRead(pin);
   digitalWrite(pin, estadoActual == LOW ? HIGH : LOW);
@@ -331,13 +354,23 @@ void loop() {
       FastLED.show();
     }
 
-    // ==================== MODO NOCTURNA / DIURNA ====================
+    // ==================== MODO EMERGENCIA ====================
+    // Comando: EME
+    // Activa todos los intermitentes con toggle cada 250ms
 
-    else if (comando == "NOCTURNA") {
+    else if (comando == "EME") {
+      modoEmergenciaActivado();
+    }
+
+    // ==================== MODO NOCTURNA / DIURNA ====================
+    // Comandos cortos: NOC y DIU
+    // Contains: "nocturna" y "diurna" (en frases completas)
+
+    else if (comando == "NOC" || comando.indexOf("nocturna") >= 0) {
       cambiarModo(true);
     }
 
-    else if (comando == "DIURNA") {
+    else if (comando == "DIU" || comando.indexOf("diurna") >= 0) {
       cambiarModo(false);
     }
 
@@ -345,34 +378,6 @@ void loop() {
     
     else if (comando == "PAR") {
       parpadeo(3);  // 3 parpadeos
-    }
-
-    // ==================== INTERMITENTES ====================
-    // INT_IZQ: local en D1
-    // INT_DER: controlado por ESP-01 #1 (8A:31:C0:57:80:10)
-
-    else if (comando == "IZQ") {
-      enviarAlD1("IZQ", true);
-      animacionCaras();
-    }
-    else if (comando == "DER") {
-      enviarAlD1("DER", true);
-      animacionCaras();
-    }
-    else if (comando == "INT_OFF") {
-      enviarAlD1("IZQ", false);
-      enviarAlD1("DER", false);
-    }
-
-    // ==================== MARCHA ATRÁS ====================
-    // Controlado por ESP-01 #2 (8E:77:5D:E0:6E:DA)
-
-    else if (comando == "MAR") {
-      enviarAlD1("MAR", true);
-      animacionCaras();
-    }
-    else if (comando == "MAR_OFF") {
-      enviarAlD1("MAR", false);
     }
 
     // ==================== RESTO DE COMANDOS (relés locales) ====================
