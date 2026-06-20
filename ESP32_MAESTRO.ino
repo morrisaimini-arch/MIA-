@@ -9,8 +9,21 @@ BluetoothSerial SerialBT;
 #define NUM_LEDS 64
 CRGB leds[NUM_LEDS];
 
+// ==================== COLORES ====================
 CRGB verde  = CRGB(0, 255, 0);
 CRGB morado = CRGB(85, 0, 85);
+CRGB negro  = CRGB(0, 0, 0);
+
+// Colores para modo noche
+CRGB colorActivo_dia   = CRGB(0, 255, 0);      // Verde
+CRGB colorFondo_dia    = CRGB(85, 0, 85);      // Morado
+CRGB colorActivo_noche = CRGB(85, 0, 85);      // Morado
+CRGB colorFondo_noche  = CRGB(0, 0, 0);        // Negro (apagado)
+
+CRGB colorActivo  = colorActivo_dia;
+CRGB colorFondo   = colorFondo_dia;
+
+bool modoNocturna = false;
 
 int brillo = 50;
 
@@ -29,10 +42,23 @@ struct_message datosRecibidos;
 
 // ==================== CARAS ====================
 
+// CARA 1 - Ojos abiertos (sonrisa)
 uint8_t cara_1[64] = {
+  0,0,0,0,0,0,0,0,
+  1,1,1,0,0,1,1,1,
+  0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,
+  0,0,0,0,0,0,0,0,
   0,1,0,0,0,0,1,0,
-  1,0,1,0,0,1,0,1,
-  0,1,0,0,0,0,1,0,
+  0,0,1,1,1,1,0,0,
+  0,0,0,0,0,0,0,0,
+};
+
+// CARA 1 PARPADEO - Ojos cerrados (parpadeo)
+uint8_t cara_1_parpadeo[64] = {
+  0,0,0,0,0,0,0,0,
+  0,1,1,0,0,1,1,0,
+  0,0,0,0,0,0,0,0,
   0,0,0,0,0,0,0,0,
   0,0,0,0,0,0,0,0,
   0,1,0,0,0,0,1,0,
@@ -126,9 +152,19 @@ void OnDataRecv(const uint8_t * mac, const uint8_t *incomingData, int len) {
 
 void setFrame(const uint8_t frame[64]) {
   for (int i = 0; i < 64; i++) {
-    leds[i] = frame[i] ? verde : morado;
+    leds[i] = frame[i] ? colorActivo : colorFondo;
   }
   FastLED.show();
+}
+
+// Parpadeo simple - Abre y cierra los ojos
+void parpadeo(int repeticiones = 1) {
+  for (int i = 0; i < repeticiones; i++) {
+    setFrame(cara_1_parpadeo);  // Ojos cerrados
+    delay(100);
+    setFrame(cara_1);           // Ojos abiertos
+    delay(100);
+  }
 }
 
 void animacionCaras() {
@@ -141,6 +177,11 @@ void animacionCaras() {
     for (int i = 0; i < numFrames; i++) {
       setFrame(frames[i]);
       delay(200);
+      
+      // Agregar parpadeo cada 2 caras
+      if (i == 1) {
+        parpadeo(1);
+      }
     }
   }
 }
@@ -175,6 +216,24 @@ void enviarAlD1(const char* comando, bool estado) {
   Serial.print("[ESP32] Enviado al D1: ");
   Serial.print(comando);
   Serial.println(estado ? " - HIGH" : " - LOW");
+}
+
+// Cambiar modo noche/día
+void cambiarModo(bool nocturna) {
+  modoNocturna = nocturna;
+  
+  if (nocturna) {
+    colorActivo = colorActivo_noche;
+    colorFondo = colorFondo_noche;
+    Serial.println("[MODO] 🌙 NOCTURNA activado");
+  } else {
+    colorActivo = colorActivo_dia;
+    colorFondo = colorFondo_dia;
+    Serial.println("[MODO] ☀️ DIURNA activado");
+  }
+  
+  // Mostrar cara actual con nuevo modo
+  setFrame(cara_1);
 }
 
 // ==================== SETUP ====================
@@ -270,6 +329,22 @@ void loop() {
       brillo = nuevoBrillo;
       FastLED.setBrightness(brillo);
       FastLED.show();
+    }
+
+    // ==================== MODO NOCTURNA / DIURNA ====================
+
+    else if (comando == "NOCTURNA") {
+      cambiarModo(true);
+    }
+
+    else if (comando == "DIURNA") {
+      cambiarModo(false);
+    }
+
+    // ==================== PARPADEO ====================
+    
+    else if (comando == "PAR") {
+      parpadeo(3);  // 3 parpadeos
     }
 
     // ==================== INTERMITENTES ====================
